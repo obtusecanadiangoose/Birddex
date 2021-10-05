@@ -1,71 +1,129 @@
 import plotly.graph_objects as go
 import dash
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, ALL, State
 from dash import dcc
 from dash import html
 import sd_material_ui
 import dash_leaflet as dl
 
-from geopy.geocoders import Nominatim
+index = 0
 
-geolocator = Nominatim(user_agent='myapplication')
+app = dash.Dash(external_stylesheets=['https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css',
+                                      'https://fonts.googleapis.com/icon?family=Material+Icons'],
+                prevent_initial_callbacks=True)
 
-mapbox_access_token = open(".mapbox_token").read()
-
-app = dash.Dash(
-    '',
-    prevent_initial_callbacks=True,
-    external_stylesheets=[
-        'https://fonts.googleapis.com/icon?family=Material+Icons',
-    ]
-)
-
-markers = [dl.Marker(position=[56, 10]), dl.CircleMarker(center=[55, 10])]
+markers = []
 
 app.layout = html.Div([
     html.Div([
-        dcc.Input(
-            id="input1",
-            type="text",
-            placeholder="centre location",
-            style={'width': '18vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}
-        ),
         dl.Map(
-            [dl.TileLayer(), dl.LayerGroup(markers), dl.LayerGroup(id="layer")],
+            [dl.TileLayer(), dl.LayerGroup(markers, id="markers"), dl.LocateControl(options={
+                'showCompass': False,
+                'locateOptions': {'enableHighAccuracy': True}})],
             id="map",
-            style={'width': '80vw', 'height': '90vh', 'float': 'left', 'margin': 'auto'}
+            style={'width': '75vw', 'height': '90vh', 'float': 'left', 'margin': 'auto', "display": "block"}
         ),
 
     ]),
     html.Div([
+        sd_material_ui.Divider(),
+        html.Div(children=[], style={'height': '1vh', 'width': '23.5vw'}),
+        html.Div([
+            html.Div([
+                sd_material_ui.DropDownMenu(
+                    id='dropdown-input',
+                    labelText='',
+                    labelId='dropdown-label',
+                    value=1,
+                    useGrouping=True,
+                    options=[
+                        dict(primaryText='Free Look', value=1),
+                        dict(primaryText='Add Marker', value=2),
+                        dict(primaryText='Remove Marker', value=3),
+                    ],
+                    autoWidth=False
+                )], style={'float': 'middle'})],
+            style={'width': '23.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}),
+
+        html.Div(id='clickdata'),
+        html.Div(id='searchdata'),
+        html.Div(children=[], style={'height': '1vh', 'width': '23.5vw'}),
+
+        sd_material_ui.AutoComplete(
+            style={'width': '23.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'},
+            id='autocomplete',
+            dataSource=[{'label': 'Austin, TX', 'value': 'Austin'},
+                        {'label': 'Houston, TX', 'value': 'Houston'},
+                        {'label': 'New York, NY', 'value': 'New York'},
+                        {'label': 'Denver, CO', 'value': 'Denver'},
+                        {'label': 'Chicago, IL', 'value': 'Chicago'},
+                        {'label': 'Detroit, MI', 'value': 'Detroit'},
+                        {'label': 'Los Angeles, CA', 'value': 'Los Angeles'}],
+            dashCallbackDelay=0
+        ),
+        html.Div(children=[], style={'height': '10vh', 'width': '23.5vw'}),
         sd_material_ui.Button(
-            children=html.P('Recentre Map'),
+            children=html.P('Assign to Marker'),
             id='button1',
             n_clicks=0,
             disableShadow=False,
             useIcon=False,
             variant='contained',
-            style={'width': '18.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}
+            style={'width': '23.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}
         ),
     ]),
-    html.Div([
-        sd_material_ui.Button(
-            children=html.P('Add Marker'),
-            id='button2',
-            n_clicks=0,
-            disableShadow=False,
-            useIcon=False,
-            variant='contained',
-            style={'width': '18.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}
-        ),
-    ])
+
 ])
 
+#TODO: Set up database
 
-@app.callback(Output("layer", "children"), [Input("map", "click_lat_lng")])
-def map_click(click_lat_lng):
-    print(dl.LayerGroup(id="layer").children)
+# Callback for SDAutoComplete
+@app.callback(Output('searchdata', 'children'),
+              [Input('autocomplete', 'selectedValue'),
+               Input("button1", "n_clicks")],
+              [dash.dependencies.State('autocomplete', 'searchText')]
+              )
+def autocomplete_callback(searchValue: int, searchText: str):
+    print(searchText)
+    print(searchValue)
+    return ['Selection is {}'.format(searchValue if searchValue else '')]
 
-    return dl.Marker(position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng)))
+
+@app.callback([Output("markers", "children"),
+               Output("clickdata", "children")],
+              [Input({'type': 'filter-dropdown', 'index': ALL}, "n_clicks"),
+               Input("map", "click_lat_lng")],
+              [State('dropdown-input', 'value')]
+              )
+def map_click(n_clicks, click_lat_lng, value):
+    selector = dash.callback_context.triggered[-1]['prop_id']
+    if selector != 'map.click_lat_lng':
+        marker_id = selector[selector.find("index") + 7:selector.find(",")]
+    else:
+        marker_id = "Map"
+    global index
+    if selector == 'map.click_lat_lng':
+        if value == 2:
+            dl.LayerGroup(markers).children.append(dl.Marker(
+                id={
+                    'type': 'filter-dropdown',
+                    'index': index
+                }, position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng))))
+            index = index + 1
+        return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id)
+    else:
+
+        if value == 3:
+            for i in range(len(dl.LayerGroup(markers).children)):
+                index_of_bad_marker = str(dl.LayerGroup(markers).children[i])[
+                                      str(dl.LayerGroup(markers).children[i]).find("index") + 8:str(
+                                          dl.LayerGroup(markers).children[i]).find("}")]
+                if marker_id in index_of_bad_marker:
+                    dl.LayerGroup(markers).children.pop(i)
+                    break
+
+            return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id)
+    return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id)
+
 
 app.run_server(debug=True, use_reloader=True)  # Turn off reloader if inside Jupyter
