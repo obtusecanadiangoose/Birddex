@@ -7,31 +7,25 @@ import sd_material_ui
 import dash_leaflet as dl
 import sqlite3
 
-def lat_lon_id(lat:float, lon:float) -> str:
-    return str(lat).replace(".", "")+str(lon).replace(".", "")
+conn = sqlite3.connect("../birddex.db", check_same_thread=False)
 
 def clk_lat_lon_id(click_lat_lng) -> str:
     lat = click_lat_lng[0]
     lon = click_lat_lng[1]
     return str(lat).replace(".", "")+str(lon).replace(".", "")
 
-conn = sqlite3.connect("birddex.db", check_same_thread=False)
-
-searched = "null"
-marker_id = 0
+index = 0
+marker_id = "Map"
+lat = 0.0
+lon = 0.0
 
 app = dash.Dash(external_stylesheets=['https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css',
                                       'https://fonts.googleapis.com/icon?family=Material+Icons'],
                 prevent_initial_callbacks=True)
 
 curr = conn.cursor()
-# Our search query that extracts all data from the NSA_DATA table.
 fetchData = "SELECT * from Markers"
-
-# Notice that the next line of code doesn't output anything upon execution.
 curr.execute(fetchData)
-
-# We use fetchall() method to store all our data in the 'answer' variable
 answer = curr.fetchall()
 markers = []
 # We print the data
@@ -41,8 +35,8 @@ for data in answer:
                     'type': 'filter-dropdown',
                     'index': data[0]
                 }, position=(data[1], data[2]), children=dl.Tooltip("({:.3f}, {:.3f})".format(*(data[1], data[2])))))
+    index = index + 1
     print(data)
-    last_used_marker = data[0]
 
 app.layout = html.Div([
     html.Div([
@@ -58,6 +52,22 @@ app.layout = html.Div([
     html.Div([
         sd_material_ui.Divider(),
         html.Div(children=[], style={'height': '1vh', 'width': '23.5vw'}),
+        html.Div([
+            html.Div([
+                sd_material_ui.DropDownMenu(
+                    id='dropdown-input',
+                    labelText='',
+                    labelId='dropdown-label',
+                    value=1,
+                    useGrouping=True,
+                    options=[
+                        dict(primaryText='Free Look', value=1),
+                        dict(primaryText='Add Marker', value=2),
+                        dict(primaryText='Remove Marker', value=3),
+                    ],
+                    autoWidth=False
+                )], style={'float': 'middle'})],
+            style={'width': '23.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}),
         html.Div(id='markerdata'),
         html.Div(id='clickdata'),
         html.Div(id='searchdata'),
@@ -85,31 +95,53 @@ app.layout = html.Div([
             variant='contained',
             style={'width': '23.5vw', 'height': '5vh', 'float': 'right', 'margin': 'auto'}
         ),
-        html.Div(children=[], style={'height': '7vh', 'width': '23.5vw'}),
-        sd_material_ui.Button(
-            children=html.P('Remove Marker'),
-            id='deleteMarker',
-            n_clicks=0,
-            disableShadow=False,
-            useIcon=False,
-            variant='contained',
-            style={'width': '23.5vw', 'height': '3vh', 'float': 'right', 'margin': 'auto', 'display': 'none'}
-        ),
     ]),
+
 ])
 
 #TODO: Set up database
+#TODO: Put this all into one function [should probably make a backup first
 
 # Callback for SDAutoComplete
 @app.callback(Output('searchdata', 'children'),
               [Input('autocomplete', 'selectedValue'),
+                Input("assign2marker", "n_clicks")
                ],
               [dash.dependencies.State('autocomplete', 'searchText')]
               )
-def autocomplete_callback(searchValue: int, searchText: str):
-    global searched
-    searched = searchValue
+def autocomplete_callback(searchValue: int, searchText: str, n_clicks: int):
+    global index
+    global marker_id
+    global lat
+    global lon
 
+    selector = dash.callback_context.triggered[-1]['prop_id']
+    print(searchValue)
+    if selector == 'assign2marker.n_clicks' and marker_id != "Map":
+        #Does marker exist?
+        curr = conn.cursor()
+        setdata = "SELECT indexx from Markers WHERE indexx=" + str(marker_id)
+        curr.execute(setdata)
+        marker_data = curr.fetchall()
+
+        if marker_data == []: #Entry Doesn't exist
+            curr = conn.cursor()
+            print(lat)
+            data = [[marker_id, lat, lon, str(searchValue)]]
+            for i in data:
+                addData = f"""INSERT INTO Markers VALUES('{i[0]}', '{i[1]}', '{i[2]}', '{i[3]}')"""
+                print(addData)  # To see all the commands iterating
+                curr.execute(addData)
+            conn.commit()
+            index+1
+
+
+        else:   #Entry Exists, update data
+            curr = conn.cursor()
+            setdata = "UPDATE Markers SET bird=\""+str(searchValue)+"\" WHERE indexx="+str(marker_id)
+            print(setdata)
+            curr.execute(setdata)
+            conn.commit()
 
 
     return ['Selection is {}'.format(searchValue if searchValue else '')]
@@ -117,24 +149,23 @@ def autocomplete_callback(searchValue: int, searchText: str):
 
 @app.callback([Output("markers", "children"),
                Output("clickdata", "children"),
-               Output("markerdata", "children"),
-               Output("deleteMarker", "style")],
+               Output("markerdata", "children")],
               [Input({'type': 'filter-dropdown', 'index': ALL}, "n_clicks"),
                Input("map", "click_lat_lng"),
-               Input("assign2marker", "n_clicks"),
-               Input("deleteMarker", "n_clicks"),
                ],
+              [State('dropdown-input', 'value')]
               )
-def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
-    global searched
+def map_click(n_clicks, click_lat_lng, value):
+    global index
     global marker_id
+    global lat
+    global lon
 
     selector = dash.callback_context.triggered[-1]['prop_id']
     print(selector)
     marker_data = ""
 
-    if selector != 'map.click_lat_lng' and selector != 'assign2marker.n_clicks'\
-            and selector != 'deleteMarker.n_clicks': #marker clicked
+    if selector != 'map.click_lat_lng': #marker clicked
         marker_id = selector[selector.find("index") + 7:selector.find(",")]
 
         curr = conn.cursor()
@@ -143,78 +174,52 @@ def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
         marker_data = curr.fetchall()
         if marker_data != []:
             marker_data = marker_data[0][0]
-
-    if selector == "map.click_lat_lng":
-        marker_id = clk_lat_lon_id(click_lat_lng)
-
+    else:
+        marker_id = "Map"
 
     #You can only add a point to the map if you assign data to it
     if selector == 'map.click_lat_lng':  # Add Marker
-
-        #Get # of saved entries
-        curr = conn.cursor()
-        setdata = "SELECT * from Markers"
-        curr.execute(setdata)
-        marker_num = curr.fetchall()
-
-        if len(dl.LayerGroup(markers).children) > len(marker_num): #if there's more markers on screen than saved ones
-            dl.LayerGroup(markers).children.pop(-1) #pop the most recent one (bc the user didn't save it)
+        if len(dl.LayerGroup(markers).children) > index:
+            dl.LayerGroup(markers).children.pop(-1)
         dl.LayerGroup(markers).children.append(dl.Marker(
             id={
                 'type': 'filter-dropdown',
-                'index': clk_lat_lon_id(click_lat_lng)
+                'index': index
             }, position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng))))
-        marker_id = clk_lat_lon_id(click_lat_lng)
-
-    if selector == 'deleteMarker.n_clicks':
-
-        for marker in dl.LayerGroup(markers).children:
-            marker_index = str(marker.id['index'])
-            if marker_index in marker_id:
-                dl.LayerGroup(markers).children.remove(marker)
-                break
+        marker_id = index
+        lat = click_lat_lng[0]
+        lon = click_lat_lng[1]
 
 
-        curr = conn.cursor()
-        setdata = "DELETE FROM Markers WHERE indexx=" + str(marker_id)
-        print(setdata)
-        curr.execute(setdata)
-        conn.commit()
+        return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
 
-    if selector == 'assign2marker.n_clicks':
-        print("marker_id to assign to: "+marker_id)############################################
-        # Does marker exist?
-        curr = conn.cursor()
-        setdata = "SELECT indexx from Markers WHERE indexx=" + str(marker_id)
-        curr.execute(setdata)
-        marker_data = curr.fetchall()
 
-        if marker_data == []:  # Entry Doesn't exist
-            print("entry doesn't exist")
-            curr = conn.cursor()
-            data = [[marker_id, click_lat_lng[0], click_lat_lng[1], str(searched)]]
-            for i in data:
-                addData = f"""INSERT INTO Markers VALUES('{i[0]}', '{i[1]}', '{i[2]}', '{i[3]}')"""
-                print(addData)  # To see all the commands iterating
-                curr.execute(addData)
-            conn.commit()
+    """
+    if selector == 'map.click_lat_lng': #Add Marker
+        if value == 2:
             dl.LayerGroup(markers).children.append(dl.Marker(
                 id={
                     'type': 'filter-dropdown',
-                    'index': lat_lon_id(click_lat_lng[0], click_lat_lng[1])
-                }, position=(click_lat_lng), children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng))))
+                    'index': index
+                }, position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng))))
+            print(click_lat_lng)
+            index = index + 1
 
-        else:  # Entry Exists, update data
-            print("entry exists")
-            curr = conn.cursor()
-            setdata = "UPDATE Markers SET bird=\"" + str(searched) + "\" WHERE indexx=" + str(marker_id)
-            print(setdata)
-            curr.execute(setdata)
-            conn.commit()
+            return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
+    else:
 
+        if value == 3:  #Remove Marker
+            for i in range(len(dl.LayerGroup(markers).children)):
+                index_of_bad_marker = str(dl.LayerGroup(markers).children[i])[
+                                      str(dl.LayerGroup(markers).children[i]).find("index") + 8:str(
+                                          dl.LayerGroup(markers).children[i]).find("}")]
+                if marker_id in index_of_bad_marker:
+                    dl.LayerGroup(markers).children.pop(i)
+                    break
 
-    return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data), \
-           {'width': '23.5vw', 'height': '3vh', 'float': 'right', 'margin': 'auto', 'display': 'flex'}
+            return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
+    """
+    return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
 
 
 app.run_server(debug=True, use_reloader=True)  # Turn off reloader if inside Jupyter

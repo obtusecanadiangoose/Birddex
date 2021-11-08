@@ -14,7 +14,7 @@ curr = conn.cursor() #Here 'curr' is our new cursor object.
 
 if refresh == True:
     createTableCommand = """ CREATE TABLE Markers (
-    indexx SMALLINT(2),
+    indexx VARCHAR(33),
     lat FLOAT(53),
     lon FLOAT(53),
     bird VARCHAR(50)
@@ -29,8 +29,8 @@ if refresh == True:
 curr = conn.cursor()
 if add == True:
     # The 2D array containing required data
-    data = [[0, 57.40972715438459, 14.851462667672505, "penis 0"],
-            [1, 56.40972715438459, 15.851462667672505, "penis 1"],
+    data = [[574097271543845914851462667672505, 57.40972715438459, 14.851462667672505, "penis 0"],
+            [564097271543845915851462667672505, 56.40972715438459, 15.851462667672505, "penis 1"],
             ]
 
     # A for loop to iterate through the data and add them one by one.
