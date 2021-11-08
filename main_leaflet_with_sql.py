@@ -10,6 +10,7 @@ import sqlite3
 conn = sqlite3.connect("birddex.db", check_same_thread=False)
 
 index = 0
+marker_id = "Map"
 
 app = dash.Dash(external_stylesheets=['https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css',
                                       'https://fonts.googleapis.com/icon?family=Material+Icons'],
@@ -85,7 +86,7 @@ app.layout = html.Div([
         html.Div(children=[], style={'height': '10vh', 'width': '23.5vw'}),
         sd_material_ui.Button(
             children=html.P('Assign to Marker'),
-            id='button1',
+            id='assign2marker',
             n_clicks=0,
             disableShadow=False,
             useIcon=False,
@@ -101,12 +102,24 @@ app.layout = html.Div([
 # Callback for SDAutoComplete
 @app.callback(Output('searchdata', 'children'),
               [Input('autocomplete', 'selectedValue'),
-               Input("button1", "n_clicks")],
+                Input("assign2marker", "n_clicks")
+               ],
               [dash.dependencies.State('autocomplete', 'searchText')]
               )
-def autocomplete_callback(searchValue: int, searchText: str):
-    print(searchText)
+def autocomplete_callback(searchValue: int, searchText: str, n_clicks: int):
+    global marker_id
+    selector = dash.callback_context.triggered[-1]['prop_id']
     print(searchValue)
+    if selector == 'assign2marker.n_clicks' and marker_id != "Map":
+        #print("beep boop writing "+str(searchValue)+" to marker "+str(marker_id))
+
+        curr = conn.cursor()
+        setdata = "UPDATE Markers SET bird=\""+str(searchValue)+"\" WHERE indexx="+str(marker_id)
+        print(setdata)
+        curr.execute(setdata)
+        conn.commit()
+
+
     return ['Selection is {}'.format(searchValue if searchValue else '')]
 
 
@@ -114,24 +127,31 @@ def autocomplete_callback(searchValue: int, searchText: str):
                Output("clickdata", "children"),
                Output("markerdata", "children")],
               [Input({'type': 'filter-dropdown', 'index': ALL}, "n_clicks"),
-               Input("map", "click_lat_lng")],
+               Input("map", "click_lat_lng"),
+               ],
               [State('dropdown-input', 'value')]
               )
 def map_click(n_clicks, click_lat_lng, value):
+    global index
+    global marker_id
+
     selector = dash.callback_context.triggered[-1]['prop_id']
+    print(selector)
     marker_data = ""
-    if selector != 'map.click_lat_lng':
+
+    if selector != 'map.click_lat_lng': #marker clicked
         marker_id = selector[selector.find("index") + 7:selector.find(",")]
 
         curr = conn.cursor()
         fetchData = "SELECT bird from Markers WHERE indexx=" + str(marker_id)
         curr.execute(fetchData)
         marker_data = curr.fetchall()
-        marker_data = marker_data[0][0]
+        if marker_data != []:
+            marker_data = marker_data[0][0]
     else:
         marker_id = "Map"
-    global index
-    if selector == 'map.click_lat_lng':
+
+    if selector == 'map.click_lat_lng': #Add Marker
         if value == 2:
             dl.LayerGroup(markers).children.append(dl.Marker(
                 id={
@@ -144,7 +164,7 @@ def map_click(n_clicks, click_lat_lng, value):
             return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
     else:
 
-        if value == 3:
+        if value == 3:  #Remove Marker
             for i in range(len(dl.LayerGroup(markers).children)):
                 index_of_bad_marker = str(dl.LayerGroup(markers).children[i])[
                                       str(dl.LayerGroup(markers).children[i]).find("index") + 8:str(
