@@ -11,6 +11,8 @@ conn = sqlite3.connect("birddex.db", check_same_thread=False)
 
 index = 0
 marker_id = "Map"
+lat = 0.0
+lon = 0.0
 
 app = dash.Dash(external_stylesheets=['https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css',
                                       'https://fonts.googleapis.com/icon?family=Material+Icons'],
@@ -98,6 +100,7 @@ app.layout = html.Div([
 ])
 
 #TODO: Set up database
+#TODO: Put this all into one function [should probably make a backup first
 
 # Callback for SDAutoComplete
 @app.callback(Output('searchdata', 'children'),
@@ -107,17 +110,38 @@ app.layout = html.Div([
               [dash.dependencies.State('autocomplete', 'searchText')]
               )
 def autocomplete_callback(searchValue: int, searchText: str, n_clicks: int):
+    global index
     global marker_id
+    global lat
+    global lon
+
     selector = dash.callback_context.triggered[-1]['prop_id']
     print(searchValue)
     if selector == 'assign2marker.n_clicks' and marker_id != "Map":
-        #print("beep boop writing "+str(searchValue)+" to marker "+str(marker_id))
-
+        #Does marker exist?
         curr = conn.cursor()
-        setdata = "UPDATE Markers SET bird=\""+str(searchValue)+"\" WHERE indexx="+str(marker_id)
-        print(setdata)
+        setdata = "SELECT indexx from Markers WHERE indexx=" + str(marker_id)
         curr.execute(setdata)
-        conn.commit()
+        marker_data = curr.fetchall()
+
+        if marker_data == []: #Entry Doesn't exist
+            curr = conn.cursor()
+            print(lat)
+            data = [[marker_id, lat, lon, str(searchValue)]]
+            for i in data:
+                addData = f"""INSERT INTO Markers VALUES('{i[0]}', '{i[1]}', '{i[2]}', '{i[3]}')"""
+                print(addData)  # To see all the commands iterating
+                curr.execute(addData)
+            conn.commit()
+            index+1
+
+
+        else:   #Entry Exists, update data
+            curr = conn.cursor()
+            setdata = "UPDATE Markers SET bird=\""+str(searchValue)+"\" WHERE indexx="+str(marker_id)
+            print(setdata)
+            curr.execute(setdata)
+            conn.commit()
 
 
     return ['Selection is {}'.format(searchValue if searchValue else '')]
@@ -134,6 +158,8 @@ def autocomplete_callback(searchValue: int, searchText: str, n_clicks: int):
 def map_click(n_clicks, click_lat_lng, value):
     global index
     global marker_id
+    global lat
+    global lon
 
     selector = dash.callback_context.triggered[-1]['prop_id']
     print(selector)
@@ -151,6 +177,24 @@ def map_click(n_clicks, click_lat_lng, value):
     else:
         marker_id = "Map"
 
+    #You can only add a point to the map if you assign data to it
+    if selector == 'map.click_lat_lng':  # Add Marker
+        if len(dl.LayerGroup(markers).children) > index:
+            dl.LayerGroup(markers).children.pop(-1)
+        dl.LayerGroup(markers).children.append(dl.Marker(
+            id={
+                'type': 'filter-dropdown',
+                'index': index
+            }, position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng))))
+        marker_id = index
+        lat = click_lat_lng[0]
+        lon = click_lat_lng[1]
+
+
+        return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
+
+
+    """
     if selector == 'map.click_lat_lng': #Add Marker
         if value == 2:
             dl.LayerGroup(markers).children.append(dl.Marker(
@@ -174,6 +218,7 @@ def map_click(n_clicks, click_lat_lng, value):
                     break
 
             return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
+    """
     return dl.LayerGroup(markers), "Last clicked marker: {}".format(marker_id), "Marker Data: {}".format(marker_data)
 
 
