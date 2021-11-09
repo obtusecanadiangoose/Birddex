@@ -23,14 +23,39 @@ app = dash.Dash(external_stylesheets=['https://maxcdn.bootstrapcdn.com/font-awes
                                       'https://fonts.googleapis.com/icon?family=Material+Icons'],
                 prevent_initial_callbacks=True)
 
+icon_green = {
+    "iconUrl": 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    "shadowUrl": 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    "iconSize": [25, 41],
+    "shadowSize": [41, 41],
+    "iconAnchor": [12, 41],
+    #"shadowAnchor": [4, 62],
+    "popupAnchor": [1, -34]
+}
+
+icon_red = {
+    "iconUrl": 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    "shadowUrl": 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    "iconSize": [25, 41],
+    "shadowSize": [41, 41],
+    "iconAnchor": [12, 41],
+    #"shadowAnchor": [4, 62],
+    "popupAnchor": [1, -34]
+}
+
+icon_blue = {
+    "iconUrl": 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    "shadowUrl": 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    "iconSize": [25, 41],
+    "shadowSize": [41, 41],
+    "iconAnchor": [12, 41],
+    #"shadowAnchor": [4, 62],
+    "popupAnchor": [1, -34]
+}
+
 curr = conn.cursor()
-# Our search query that extracts all data from the NSA_DATA table.
 fetchData = "SELECT * from Markers"
-
-# Notice that the next line of code doesn't output anything upon execution.
 curr.execute(fetchData)
-
-# We use fetchall() method to store all our data in the 'answer' variable
 answer = curr.fetchall()
 markers = []
 # We print the data
@@ -40,7 +65,7 @@ for data in answer:
                     'type': 'filter-dropdown',
                     'index': data[0]
                 }, position=(data[1], data[2]), children=dl.Tooltip("({:.3f}, {:.3f})".format(*(data[1], data[2]))),
-        bubblingMouseEvents=True
+        bubblingMouseEvents=True, icon=icon_blue
     ))
     print(data)
     last_used_marker = data[0]
@@ -74,7 +99,7 @@ app.layout = html.Div([
                         {'label': 'Chicago, IL', 'value': 'Chicago'},
                         {'label': 'Detroit, MI', 'value': 'Detroit'},
                         {'label': 'Los Angeles, CA', 'value': 'Los Angeles'}],
-            dashCallbackDelay=0
+            dashCallbackDelay=0, hintText="Enter City",
         ),
         html.Div(children=[], style={'height': '10vh', 'width': '23.5vw'}),
         sd_material_ui.Button(
@@ -99,7 +124,8 @@ app.layout = html.Div([
     ]),
 ])
 
-#TODO: move "select bird" to a function
+#TODO: move "select bird" to a function.
+#TODO: Figure out how to change the colour of the currently selected marker.
 
 # Callback for SDAutoComplete
 @app.callback(Output('searchdata', 'children'),
@@ -135,6 +161,15 @@ def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
     print(selector)
     #marker_data = "penis"
 
+    for marker in dl.LayerGroup(markers).children: #reset all markers to blue
+        marker.icon = icon_blue
+
+    for marker in dl.LayerGroup(markers).children: #then make the clicked one green
+        marker_index = str(marker.id['index'])
+        if marker_index in clk_lat_lon_id(click_lat_lng):
+            marker.icon=icon_green
+            break
+
     curr = conn.cursor()
     fetchData = "SELECT bird from Markers WHERE indexx=\"" + str(clk_lat_lon_id(click_lat_lng))+"\""
     curr.execute(fetchData)
@@ -143,6 +178,7 @@ def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
         marker_data = marker_data[0][0]
     else:
         marker_data = "penisNULL"
+
     """
     if selector != 'map.click_lat_lng' and selector != 'assign2marker.n_clicks'\
             and selector != 'deleteMarker.n_clicks': #marker clicked
@@ -180,7 +216,7 @@ def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
                     'type': 'filter-dropdown',
                     'index': clk_lat_lon_id(click_lat_lng)
                 }, position=click_lat_lng, children=dl.Tooltip("({:.3f}, {:.3f})".format(*click_lat_lng)),
-                bubblingMouseEvents=True
+                bubblingMouseEvents=True, icon=icon_red
             ))
 
         curr = conn.cursor()
@@ -231,6 +267,12 @@ def map_click(n_clicks, click_lat_lng, assign_clicks, delete_clicks):
                 print(addData)  # To see all the commands iterating
                 curr.execute(addData)
             conn.commit()
+
+            for marker in dl.LayerGroup(markers).children:  # then make the clicked one green
+                marker_index = str(marker.id['index'])
+                if marker_index in clk_lat_lon_id(click_lat_lng):
+                    marker.icon = icon_green
+                    break
             '''
             dl.LayerGroup(markers).children.append(dl.Marker(
                 id={
