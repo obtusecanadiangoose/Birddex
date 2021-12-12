@@ -2,5 +2,6 @@
 dash-extensions
 .mapbox_token
 PAT.txt
+__pycache__
 
 
