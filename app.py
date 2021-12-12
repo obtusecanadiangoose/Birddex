@@ -4,6 +4,9 @@ import dash_leaflet as dl
 import sqlite3
 from data import bird_list, latin_and_common_from_code, no_image
 import dash_dangerously_set_inner_html
+import dash_bootstrap_components as dbc
+from dash_bootstrap_components._components.Container import Container
+
 
 
 
@@ -19,7 +22,7 @@ def clk_lat_lon_id(click_lat_lng) -> str:
 
 conn = sqlite3.connect("birddex.db", check_same_thread=False)
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', 'https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css']
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', 'https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css', dbc.themes.BOOTSTRAP]
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, prevent_initial_callbacks=True)
 
@@ -70,42 +73,98 @@ for data in answer:
         bubblingMouseEvents=True, icon=icon_blue
     ))
 
+nav_map = dbc.NavItem(dbc.NavLink("Map", href="#", style={"font-size": "1.8rem"}, className="ms-4 text-light"))
+
+nav_stats = dbc.NavItem(dbc.NavLink("Stats", href="#", style={"font-size": "1.8rem", "color":"rgba(255,255,255,.55)"}, className="ms-4"))
+                                                                                    #color is grey (not selected) and does not have the text-light className
+
+# make a reuseable dropdown for the different examples
+dropdown = dbc.DropdownMenu(
+    children=[
+        dbc.DropdownMenuItem("FAQ"),
+        dbc.DropdownMenuItem("About"),
+        dbc.DropdownMenuItem("Donate"),
+        #dbc.DropdownMenuItem(divider=True),
+        #dbc.DropdownMenuItem("Entry 3"),
+    ],
+    nav=True,
+    in_navbar=True,
+    label="Help",
+    style={"font-size": "1.8rem"}, className="ms-4 text-light"
+)
+# this example that adds a logo to the navbar brand
+logo = dbc.Navbar(
+    dbc.Container(
+        [
+            html.A(
+                # Use row and col to control vertical alignment of logo / brand
+                dbc.Row(
+                    [
+                        dbc.Col(html.Img(src="assets/img/logo_white.png", height="30px")),
+                        dbc.Col(dbc.NavbarBrand("Birddex", style={"font-size": "2rem"}, className="ms-2 text-light")),
+                    ],
+                    align="center",
+                    className="g-0",
+                ),
+                href="https://plotly.com",
+                style={"textDecoration": "none"},
+            ),
+            dbc.NavbarToggler(id="navbar-toggler2", n_clicks=0),
+            dbc.Collapse(
+                dbc.Nav(
+                    [nav_map, nav_stats, dropdown],
+                    className="ms-auto",
+                    navbar=True,
+                ),
+                id="navbar-collapse2",
+                navbar=True,
+            ),
+        ],
+    style={"max-width":"inherit", "width":"100%"}),
+    color="dark",
+    dark=True,
+    className="navbar navbar-dark",
+)
+
 app.layout = \
     html.Div(id="wrapper", children=[
-        html.Nav(className="navbar navbar-dark align-items-start sidebar sidebar-dark accordion bg-gradient-primary p-0",
-            style={"font-size": "1.5rem"}, children=[
-            html.Div(className="container-fluid d-flex flex-column p-0", children=[
-                html.A(className="navbar-brand d-flex justify-content-center align-items-center sidebar-brand m-0", href="#", children=[
-                    html.Div(className="sidebar-brand-icon rotate-n-15", children=[
-                        html.I(className="fas fa-laugh-wink")
-                    ]),
-                    html.Div(className="sidebar-brand-text mx-3", children=[
-                        html.Span("Birddex", style={"font-size": "1.5rem"})
-                    ])
-                ]),
-                html.Hr(className="sidebar-divider my-0"),
-                html.Ul(className="navbar-nav text-light", id="accordianSidebar", children=[
-                    html.Li(className="nav-item", children=[
-                        html.A(className="nav-link active", style={"font-size": "1.5rem"}, children=["Map Entry"])
-                    ]),
-                    html.Li(className="nav-item", children=[
-                        html.A(className="nav-link", style={"font-size": "1.5rem"}, children=["Stats for Nerds"])
-                    ])
-                ]),
-                html.Div(className="text-center d-none d-md-inline", children=[
-                   html.Button(className="btn rounded-circle border-0", id="sidebarToggle", type="button")
-                ])
-            ]),
-        ]),
+        # html.Nav(className="navbar navbar-dark align-items-start sidebar sidebar-dark accordion bg-gradient-primary p-0",
+        #     style={"font-size": "1.5rem"}, children=[
+        #     html.Div(className="container-fluid d-flex flex-column p-0", children=[
+        #         html.A(className="navbar-brand d-flex justify-content-center align-items-center sidebar-brand m-0", href="#", children=[
+        #             html.Div(className="sidebar-brand-icon rotate-n-15", children=[
+        #                 html.I(className="fas fa-laugh-wink")
+        #             ]),
+        #             html.Div(className="sidebar-brand-text mx-3", children=[
+        #                 html.Span("Birddex", style={"font-size": "1.5rem"})
+        #             ])
+        #         ]),
+        #         html.Hr(className="sidebar-divider my-0"),
+        #         html.Ul(className="navbar-nav text-light", id="accordianSidebar", children=[
+        #             html.Li(className="nav-item", children=[
+        #                 html.A(className="nav-link active", style={"font-size": "1.5rem"}, children=["Map Entry"])
+        #             ]),
+        #             html.Li(className="nav-item", children=[
+        #                 html.A(className="nav-link", style={"font-size": "1.5rem"}, children=["Stats for Nerds"])
+        #             ])
+        #         ]),
+        #         html.Div(className="text-center d-none d-md-inline", children=[
+        #            html.Button(className="btn rounded-circle border-0", id="sidebarToggle", type="button")
+        #         ])
+        #     ]),
+        # ]),
+
         html.Div(className="d-flex flex-column", id="content-wrapper", children=[
+logo,
             html.Div(id="content", children=[
+
                 #html.Nav(className="navbar navbar-dark navbar-expand accordian bg-gradient-primary shadow mb-0 topbar static-top", style={"font-size": "1.5rem"}, children=[
                 #]),
                 html.Div(className="container-fluid", children=[
                     html.Div(className="d-sm-flex justify-content-between align-items-center mb-4", children=[
                     ]),
                     html.Div(className="row", children=[
-                        html.Div(className="col-lg-7 col-xl-8", style={"height": "96vh"}, children=[
+                        html.Div(className="col-lg-7 col-xl-8", style={"height": "91vh"}, children=[ #IF SCROLLBAR SHOWS UP EDIT THIS
                             html.Div(id="clickdata"),
                             html.Div(className="card shadow mb-4", children=[
                                 html.Div(className="card-body", children=[

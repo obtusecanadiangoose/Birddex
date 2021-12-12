@@ -3,5 +3,6 @@ dash-extensions
 .mapbox_token
 PAT.txt
 __pycache__
+test_files
 
 
